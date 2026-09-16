@@ -2,22 +2,15 @@ pipeline {
     agent any
 
     environment {
-        AWS_REGION    = 'ap-south-1'
-        ECR_REGISTRY  = '129463260199.dkr.ecr.ap-south-1.amazonaws.com'
+        AWS_REGION     = 'ap-south-1'
+        ECR_REGISTRY   = '129463260199.dkr.ecr.ap-south-1.amazonaws.com'
         ECR_REPOSITORY = 'application-code'
-        ECR_IMAGE     = '129463260199.dkr.ecr.ap-south-1.amazonaws.com/application-code:latest'
-        EKS_CLUSTER   = 'devops-cicd-cluster'
-        NAMESPACE     = 'application'
+        ECR_IMAGE      = '129463260199.dkr.ecr.ap-south-1.amazonaws.com/application-code:latest'
+        EKS_CLUSTER    = 'my-eks-cluster'
+        NAMESPACE      = 'application'
     }
 
     stages {
-
-        stage('Checkout k8s Repository') {
-            steps {
-                git branch: 'main',
-                    url: 'https://github.com/athish1303/k8s.git'
-            }
-        }
 
         stage('Verify Kubernetes Files') {
             steps {
@@ -29,6 +22,7 @@ pipeline {
                     ls -la
 
                     echo "===== Kubernetes Manifests ====="
+
                     test -f namespace.yaml
                     test -f deployment.yaml
                     test -f service.yaml
@@ -45,7 +39,7 @@ pipeline {
                     aws sts get-caller-identity
 
                     echo "===== AWS Region ====="
-                    echo ${AWS_REGION}
+                    echo "${AWS_REGION}"
                 '''
             }
         }
@@ -56,10 +50,10 @@ pipeline {
                     echo "===== Logging into ECR ====="
 
                     aws ecr get-login-password \
-                        --region ${AWS_REGION} | \
+                        --region "${AWS_REGION}" | \
                     docker login \
                         --username AWS \
-                        --password-stdin ${ECR_REGISTRY}
+                        --password-stdin "${ECR_REGISTRY}"
                 '''
             }
         }
@@ -70,14 +64,14 @@ pipeline {
                     echo "===== Checking ECR Image ====="
 
                     aws ecr describe-images \
-                        --repository-name ${ECR_REPOSITORY} \
-                        --region ${AWS_REGION} \
+                        --repository-name "${ECR_REPOSITORY}" \
+                        --region "${AWS_REGION}" \
                         --query 'imageDetails[*].imageTags' \
                         --output json
 
-                    echo "Pulling application image..."
+                    echo "===== Pulling Application Image ====="
 
-                    docker pull ${ECR_IMAGE}
+                    docker pull "${ECR_IMAGE}"
                 '''
             }
         }
@@ -88,8 +82,8 @@ pipeline {
                     echo "===== Configuring kubeconfig ====="
 
                     aws eks update-kubeconfig \
-                        --region ${AWS_REGION} \
-                        --name ${EKS_CLUSTER}
+                        --region "${AWS_REGION}" \
+                        --name "${EKS_CLUSTER}"
 
                     echo "===== Current Kubernetes Context ====="
 
@@ -117,11 +111,13 @@ pipeline {
                 sh '''
                     echo "===== Deploying Application ====="
 
-                    kubectl apply -f deployment.yaml \
-                        -n ${NAMESPACE}
+                    kubectl apply \
+                        -f deployment.yaml \
+                        -n "${NAMESPACE}"
 
-                    kubectl apply -f service.yaml \
-                        -n ${NAMESPACE}
+                    kubectl apply \
+                        -f service.yaml \
+                        -n "${NAMESPACE}"
                 '''
             }
         }
@@ -133,7 +129,7 @@ pipeline {
 
                     kubectl rollout status \
                         deployment/application-code \
-                        -n ${NAMESPACE} \
+                        -n "${NAMESPACE}" \
                         --timeout=180s
                 '''
             }
@@ -145,24 +141,24 @@ pipeline {
                     echo "===== Pods ====="
 
                     kubectl get pods \
-                        -n ${NAMESPACE} \
+                        -n "${NAMESPACE}" \
                         -o wide
 
                     echo "===== Deployment ====="
 
                     kubectl get deployment \
-                        -n ${NAMESPACE}
+                        -n "${NAMESPACE}"
 
                     echo "===== Service ====="
 
                     kubectl get svc \
-                        -n ${NAMESPACE}
+                        -n "${NAMESPACE}"
 
                     echo "===== Service Details ====="
 
                     kubectl describe svc \
                         application-code-service \
-                        -n ${NAMESPACE}
+                        -n "${NAMESPACE}"
                 '''
             }
         }
